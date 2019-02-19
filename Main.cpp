@@ -14,7 +14,7 @@ void allGood(Party& Alice, Party& Bob)
 	Alice.tempR[Alice.newT].index = 0;
 	for (int i = 0; i < BLOCK_SIZE; i++)
 	{
-		// Alice sends, Bob receives
+		// Alicde sends, Bob receives
 		Alice.sendBit = Party::Pi();
 		Alice.tempS[Alice.newT].fillBlock(Alice.sendBit);
 
