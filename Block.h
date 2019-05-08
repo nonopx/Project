@@ -1,24 +1,29 @@
 #pragma once
-#define BLOCK_SIZE 9
+extern int BLOCK_SIZE ;
 
 
 class Block
 {
-public:
+private:
 	const int k;
 	int* block;
 	bool flag;
 	int index;
+
+public:
 	int isFull();
 	void fillBlock(int msg);
-	void resetFlag();
 	bool checkIfAllZero();
 	bool checkIfError();
-	void addBlock(Block& block);
+	bool checkIfk3Zero();
 	void resetBlock();
-	void fillZeroBlock();
-
 	Block();
 	~Block();
+
+
+	// set's & set's
+	int* getBlock();
+	int getIndex();
+	void setIndex(int i);
 };
 
