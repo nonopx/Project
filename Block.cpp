@@ -1,6 +1,7 @@
 #include "Block.h"
 
 #include <iostream>
+int BLOCK_SIZE = 10;
 using namespace std;
 Block::Block() :k(BLOCK_SIZE)
 {
@@ -23,10 +24,7 @@ int Block::isFull()
 }
 void Block::fillBlock(int msg)
 {
-	if (index == k)
-		cout << "error in Block::fillBlock" << endl;
 	this->block[index] = msg;
-	
 	index++;
 }
 bool Block::checkIfError()
@@ -35,49 +33,57 @@ bool Block::checkIfError()
 	{
 		if (2 == this->block[i])
 		{
-			
+
 			return true;
 		}
 	}
 	return false;
 }
-void Block::fillZeroBlock()
-{
-	for (int i = 0; i < k; i++)
-	{
-		this->block[i] = 5;
-	}
-}
-void Block::resetFlag()
-{
-	this->flag = false;
-}
 bool Block::checkIfAllZero()
 {
-	for (int i = 0; i < k-2  ; i++)
+	for (int i = 0; i < k - 2; i++)
 	{
-		if (0 != this->block[i] && 5 != this->block[i] && 6 != this->block[i])
+		if (0 != this->block[i] && 5 != this->block[i])
 		{
 			return false;
 		}
 	}
 	return true;
 }
-void Block::addBlock(Block& blockToAdd)
+bool Block::checkIfk3Zero()
 {
-	this->flag = blockToAdd.flag;
-	this->index = blockToAdd.index;
-	for (int i = 0; i < blockToAdd.k; i++)
+	for (int i = 0; i < k - 3; i++)
 	{
-		this->block[i] = blockToAdd.block[i];
+		if (0 != this->block[i] && 5 != this->block[i])
+		{
+			return false;
+		}
 	}
-
+	return true;
 }
+
 void Block::resetBlock()
 {
 	for (int i = 0; i < k; i++)
 	{
-		this->block[i] = 6;
+		this->block[i] = 5;
 	}
 	this->index = 0;
+}
+
+
+
+int* Block::getBlock()
+{
+	return this->block;
+}
+
+int Block::getIndex()
+{
+	return this->index;
+}
+
+void Block::setIndex(int i)
+{
+	this->index = i;
 }
