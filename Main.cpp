@@ -11,7 +11,7 @@ using namespace std;
 int runProtocol(Party & Alice,Party & Bob,int limit)
 {
 	int round = 0;
-	while (round != 7000000000)	// round = 2k bits (k bits each party)
+	while (round != 7000000000)	// round = 2k bits (k bits each party), run protocol "on the fly"
 	{
 		// protocol finished
 		if (Alice.getCount()*BLOCK_SIZE - Alice.getCountOnes() >= limit && Bob.getCount()*BLOCK_SIZE - Bob.getCountOnes() >= limit)
@@ -25,27 +25,27 @@ int runProtocol(Party & Alice,Party & Bob,int limit)
 		Bob.setNewT((Bob.getTindex() + Bob.getTempS()[(Bob.getParity() + 1) % 4].isFull() + 1) % 4);
 
 
-		if (Alice.getSendZero() == false && Bob.getSendZero() == false)
+		if (Alice.getSendZero() == false && Bob.getSendZero() == false)	// no errors
 		{
-			Party::allGood(Alice, Bob);	// send block of k bits, each
+			Party::noErrorsOnBothSides(Alice, Bob);	// send block of k bits, each
 
 			// lines 11-19 - check all scenarios
-			Party::oneGood(Alice);
-			Party::oneGood(Bob);
+			Party::checkAllCasesInProtocol(Alice);
+			Party::checkAllCasesInProtocol(Bob);
 		}
-		else if (Alice.getSendZero() == true && Bob.getSendZero() == true)
+		else if (Alice.getSendZero() == true && Bob.getSendZero() == true)	// both parties saw error last round
 		{
-			Party::allBad(Alice, Bob);
+			Party::bothSidesSeeErrors(Alice, Bob);
 		}
-		else if (Alice.getSendZero() == true && Bob.getSendZero() == false)
+		else if (Alice.getSendZero() == true && Bob.getSendZero() == false)	// Alice saw error last round
 		{
-			Party::AliceBadBobGood(Alice, Bob);
-			Party::oneGood(Bob);
+			Party::AliceSeesErrorBobNot(Alice, Bob);
+			Party::checkAllCasesInProtocol(Bob);
 		}
-		else if (Alice.getSendZero() == false && Bob.getSendZero() == true)
+		else if (Alice.getSendZero() == false && Bob.getSendZero() == true)	// Bob saw error last round
 		{
-			Party::AliceGoodBobBad(Alice, Bob);
-			Party::oneGood(Alice);
+			Party::BobSeesErrorAliceNot(Alice, Bob);
+			Party::checkAllCasesInProtocol(Alice);
 		}
 
 
@@ -125,8 +125,9 @@ void main()
 		BLOCK_SIZE = 16;
 		for (int i = 0; i < 10; i++)
 		{
-			//PiAlice::generateTrans();
-			//PiBob::generateTrans();
+			/* for random protocol
+			PiAlice::generateTrans();
+			PiBob::generateTrans();*/
 			rate+= mainExe();
 		}
 		std::cout << ((rate / 10));
