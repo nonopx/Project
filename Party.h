@@ -30,19 +30,17 @@ public:
 	
 	Party();
 	unsigned int getBitXor(int x, unsigned int* tr, unsigned int* ts, Block& temp_p_1S, Block& temp_p_1R, Block& temp_newS, Block& temp_newR, int indexresultTS, int indexTS, int countones, unsigned int randmine);
-	static bool checkTransEq(Block* b1, Block* b2);
 	static bool checkreal(unsigned int* b1,unsigned int* b2);
 	static bool checkAllTrans(Party& alice, Party& bob);
 	void nextPhase();
-	//static void printTran(Block* b1);
 	void addBlockTR(Block& blocktoadd);
 	void addBlockTS(Block& blocktoadd);
-	static void allGood(Party& Alice, Party& Bob);
-	static void allBad(Party& Alice, Party& Bob);
-	static void AliceBadBobGood(Party& Alice, Party& Bob);
-	static void AliceGoodBobBad(Party& Alice, Party& Bob);
+	static void noErrorsOnBothSides(Party& Alice, Party& Bob);
+	static void bothSidesSeeErrors(Party& Alice, Party& Bob);
+	static void AliceSeesErrorBobNot(Party& Alice, Party& Bob);
+	static void BobSeesErrorAliceNot(Party& Alice, Party& Bob);
 	static void print(Party& Alice, Party& Bob);
-	static void oneGood(Party& good);
+	static void checkAllCasesInProtocol(Party& good);
 	static void printbits(unsigned int * b1);
 	unsigned int gen32PRGbit(unsigned int seed);
 	static void getRandom(Party& alice, Party& bob);
