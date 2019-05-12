@@ -9,6 +9,7 @@ using namespace std;
 #define c 2531011
 #define a 214013
 #define m 4294967296
+
 #define ALICE_INPUT 0, Alice.TS, Alice.TR, Alice.tempS[(Alice.parity + 1) % 4], Alice.tempR[(Alice.parity + 1) % 4], Alice.tempS[Alice.newT], Alice.tempR[Alice.newT], Alice.indexresultTS, Alice.indexTS, Alice.countones, Alice.randAlice
 #define BOB_INPUT 0, Bob.TS, Bob.TR, Bob.tempS[(Bob.parity + 1)%4], Bob.tempR[(Bob.parity + 1)%4], Bob.tempS[Bob.newT], Bob.tempR[Bob.newT], Bob.indexresultTS, Bob.indexTS,Bob.countones, Bob.randBob
 
@@ -54,6 +55,7 @@ Party::~Party()
 }
 
 
+// initialize var's between 2 phases - sending prg bits and rest of protocol
 void Party::nextPhase()
 {
 	countones = 0;
@@ -78,29 +80,8 @@ void Party::nextPhase()
 	}
 
 }
-bool Party::checkTransEq(Block* b1, Block* b2)
-{
-	int numOfBlocks = n / BLOCK_SIZE;
-	for (int i = 0; i < numOfBlocks; i++)
-	{
-		for (int j = 0; j < BLOCK_SIZE; j++)
-		{
-			if (b1[i].getBlock()[j] != b2[i].getBlock()[j] || b1[i].getBlock()[j] == 5 || b2[i].getBlock()[j] == 5)
-			{
-				return false;
-			}
-		}
-	}
-	for (int j = 0; j < n%BLOCK_SIZE; j++)
-	{
 
-		if (b1[numOfBlocks].getBlock()[j] != b2[numOfBlocks].getBlock()[j] || b1[numOfBlocks].getBlock()[j] == 5 || b2[numOfBlocks].getBlock()[j] == 5)
-		{
-			return false;
-		}
-	}
-	return true;
-}
+// check if trans are equal
 bool Party::checkreal(unsigned int* b1,unsigned int* b2)
 {
 	int index = n / 32;
@@ -111,7 +92,7 @@ bool Party::checkreal(unsigned int* b1,unsigned int* b2)
 	}
 	if (n % 32 != 0)
 	{
-		int mod = n % 32						;//////////////////////////////maybe all this function need to be with 32
+		int mod = n % 32;
 		int po = pow(2, mod);
 		if ((b1[index] % po) != (b2[index] % po))
 			return false;
@@ -126,6 +107,8 @@ bool Party::checkAllTrans(Party& alice, Party& bob)
 		return false;
 	return (checkreal(alice.TR, bob.TS) && checkreal(alice.TS, bob.TR));
 }
+
+// get appropriate bit from prg string
 unsigned int Party::getBitXor(int x, unsigned int* tr, unsigned int* ts, Block& temp_p_1S, Block& temp_p_1R, Block& temp_newS, Block& temp_newR, int indexresultTS, int indexTS, int countones, unsigned int randmine)
 {
 	int countBits = 0;
@@ -139,7 +122,8 @@ unsigned int Party::getBitXor(int x, unsigned int* tr, unsigned int* ts, Block& 
 	ret = ret % 2;
 	return ret;
 }
-void Party::allGood(Party& Alice, Party& Bob)
+
+void Party::noErrorsOnBothSides(Party& Alice, Party& Bob)
 {
 	Bob.tempR[Bob.newT].resetBlock();
 	Bob.tempS[Bob.newT].resetBlock();
@@ -148,50 +132,54 @@ void Party::allGood(Party& Alice, Party& Bob)
 	for (int i = 0; i < BLOCK_SIZE; i++)
 	{
 
-		// Alicde sends, Bob receives
-		if (i >= BLOCK_SIZE - 3 && Alice.tempS[Alice.newT].checkIfk3Zero())
+		// Alice sends, Bob receives
+		if (i >= BLOCK_SIZE - 3 && Alice.tempS[Alice.newT].checkIfk3Zero())	// pad 1 in case of need
 		{
 			Alice.sendBit = 1;
 		}
-		else
+		else  // no need to pad 1
 		{
-			if (0==Alice.phase)
+			if (0==Alice.phase)	// send prg bits
 			{
 				Alice.sendBit = PiAlice::piRand(ALICE_INPUT);
 			}
-			else
+			else				// run protocol
 			{
 				Alice.sendBit = PiAlice::Pi(ALICE_INPUT) ^ Alice.getBitXor(ALICE_INPUT);
 			}
 		}
+		// save bits
 		Alice.tempS[Alice.newT].fillBlock(Alice.sendBit);
 		Bob.tempR[Bob.newT].fillBlock(Channel::sendabit(Alice.sendBit));
 
-		if (i >= BLOCK_SIZE - 3 && Bob.tempS[Bob.newT].checkIfk3Zero() )
+		
+		// Bob sends, Alice receives
+		if (i >= BLOCK_SIZE - 3 && Bob.tempS[Bob.newT].checkIfk3Zero())	// pad 1 in case of need
 		{
 			Bob.sendBit = 1;
 		}
-		else
+		else  // no need to pad 1
 		{
-			if (0 == Bob.phase)
+			if (0 == Bob.phase)	// send prg bits
 			{
 				Bob.sendBit = PiBob::piRand(BOB_INPUT);
 			}
-			else
+			else				// run protocol
 			{
 				Bob.sendBit = PiBob::Pi(BOB_INPUT)^Bob.getBitXor(BOB_INPUT);
 			}
 				
 		}
-		// Bob sends, Alice receives
+		// save bits
 		Bob.tempS[Bob.newT].fillBlock(Bob.sendBit);
 		Alice.tempR[Alice.newT].fillBlock(Channel::sendabit(Bob.sendBit));
 
 	}
 
 }
-void Party::allBad(Party& Alice, Party& Bob)
+void Party::bothSidesSeeErrors(Party& Alice, Party& Bob)
 {
+	// both sides send a zeros block
 	for (int i = 0; i < BLOCK_SIZE; i++)
 	{
 		// Alice sends, Bob receives
@@ -207,7 +195,7 @@ void Party::allBad(Party& Alice, Party& Bob)
 	Bob.sendZero = false;
 
 }
-void Party::AliceBadBobGood(Party& Alice, Party& Bob)
+void Party::AliceSeesErrorBobNot(Party& Alice, Party& Bob)
 {
 	Bob.tempR[Bob.newT].setIndex(0);
 	Bob.tempS[Bob.newT].setIndex(0);
@@ -219,11 +207,11 @@ void Party::AliceBadBobGood(Party& Alice, Party& Bob)
 		Bob.tempR[Bob.newT].fillBlock(Channel::sendabit(Alice.sendBit));
 
 		// Bob sends, Alice receives
-		if (0 == Bob.phase)
+		if (0 == Bob.phase)		// send prg bits
 		{
 			Bob.sendBit = PiBob::piRand(BOB_INPUT);
 		}
-		else
+		else                    // run protocol
 		{
 			Bob.sendBit = PiBob::Pi(BOB_INPUT) ^ Bob.getBitXor(BOB_INPUT);
 		}
@@ -251,12 +239,12 @@ void Party::AliceBadBobGood(Party& Alice, Party& Bob)
 		Bob.tempR[Bob.newT].fillBlock(Channel::sendabit(Alice.sendBit));
 
 		// Bob sends, Alice receives
-		if (Bob.phase==0)
+		if (Bob.phase==0)	// send prg bits
 		{
 			Bob.sendBit = PiBob::piRand(BOB_INPUT);
 
 		}
-		else
+		else                 // run protocol
 		{
 			Bob.sendBit = PiBob::Pi(BOB_INPUT) ^ Bob.getBitXor(BOB_INPUT);
 		}
@@ -266,17 +254,18 @@ void Party::AliceBadBobGood(Party& Alice, Party& Bob)
 
 	Alice.sendZero = false;
 }
-void Party::AliceGoodBobBad(Party& Alice, Party& Bob)
+void Party::BobSeesErrorAliceNot(Party& Alice, Party& Bob)
 {
 	Alice.tempS[Alice.newT].setIndex(0);
 	Alice.tempR[Alice.newT].setIndex(0);
 	for (int i = 0; i < BLOCK_SIZE - 2; i++)
 	{
-		if (Alice.phase==0)
+		// Alice sends, Bob receives
+		if (Alice.phase==0)		// send prg bits
 		{
 			Alice.sendBit = PiAlice::piRand(ALICE_INPUT);
 		}
-		else
+		else                   // run protocol
 		{
 			Alice.sendBit = PiAlice::Pi(ALICE_INPUT) ^ Alice.getBitXor(ALICE_INPUT);
 		}
@@ -304,11 +293,11 @@ void Party::AliceGoodBobBad(Party& Alice, Party& Bob)
 	for (int i = 0; i < 2; i++)
 	{
 		// Alice sends, Bob receives
-		if (Alice.phase==0)
+		if (Alice.phase==0)			// send prg bits
 		{
 			Alice.sendBit = PiAlice::piRand(ALICE_INPUT);
 		}
-		else
+		else                        // run protocol
 		{
 			Alice.sendBit = PiAlice::Pi(ALICE_INPUT) ^ Alice.getBitXor(ALICE_INPUT);
 		}
@@ -324,7 +313,7 @@ void Party::AliceGoodBobBad(Party& Alice, Party& Bob)
 
 	Bob.sendZero = false;
 }
-void Party::oneGood(Party& good)
+void Party::checkAllCasesInProtocol(Party& good)
 {
 	int checker = (good.parity + 2) % 4;
 	int bit0;
@@ -367,7 +356,6 @@ void Party::oneGood(Party& good)
 
 	else if (good.newT == checker)
 	{
-		//try
 		good.addBlockTR(good.tempR[(good.parity + 1) % 4]);
 		good.addBlockTS(good.tempS[(good.parity + 1) % 4]);
 		if (good.tempS[good.newT].checkIfk3Zero())
@@ -377,7 +365,7 @@ void Party::oneGood(Party& good)
 		good.Tindex++;
 	}
 }
-void Party::addBlockTR(Block& blocktoadd)
+void Party::addBlockTR(Block& blocktoadd) // this function takes a block and put it in the transcript of recieved
 {
 	int count3 = 1;
 		int checker = 0;
@@ -412,7 +400,7 @@ void Party::addBlockTR(Block& blocktoadd)
 		count++;
 	
 }
-void Party::addBlockTS(Block& blocktoadd)
+void Party::addBlockTS(Block& blocktoadd) // // this function takes a block and put it in the transcript of sent
 {
 	int count3 = 1;
 	{
@@ -458,7 +446,7 @@ void Party::print(Party&Alice,Party&Bob)
 	std::cout << "Alice TR" << endl;
 	Party::printbits(Alice.TR);
 }
-void Party::printbits(unsigned int * b1)
+void Party::printbits(unsigned int * b1) //this function prints all the bits of a given int of bits . 
 {
 
 	for (int i = 0; i < n/32; i++)
@@ -482,7 +470,7 @@ void Party::printbits(unsigned int * b1)
 	}
 	cout << endl;
 }
-void Party::getRandom(Party& Alice, Party& Bob)
+void Party::getRandom(Party& Alice, Party& Bob) //get 32 bit seed for both sides .
 {
 	for (int i = 0; i < 32; i++)
 	{
@@ -493,7 +481,7 @@ void Party::getRandom(Party& Alice, Party& Bob)
 		Bob.randBob += pow(2, i)*(std::rand() % 2);
 	}
 }
-unsigned int Party::gen32PRGbit(unsigned int seed)
+unsigned int Party::gen32PRGbit(unsigned int seed) //a strong prg with good parameters for our useage.
 {
 	return (seed*a + c) % m;
 }
@@ -502,7 +490,7 @@ void Party::pumpRandom()
 	this->pumpHalfRandom(this->randAlice, this->randBob);
 	
 }
-void Party::pumpHalfRandom(unsigned int seed,unsigned int seed2)
+void Party::pumpHalfRandom(unsigned int seed,unsigned int seed2) //pump a pseudo random string for one side.
 {
 	int size = n / 64 + 1;
 	this->pumpSeed[0] = seed;
