@@ -4,11 +4,13 @@ using namespace std;
 #include "Channel.h"
 #include  "Block.h"
 #include <fstream>
-#include "PiAlice.h"
-#include "PiBob.h"
+#include "Pi.h"
+#include "PiOne.h"
+#include "PiRand.h"
+#include "PiZero.h"
 #include <math.h>  
 
-int runProtocol(Party & Alice,Party & Bob,int limit)
+int runProtocol(Party & Alice, Party & Bob, int limit, Channel& channelAliceToBob, Channel& channelBobToAlice)
 {
 	int round = 0;
 	while (round != 7000000000)	// round = 2k bits (k bits each party), run protocol "on the fly"
@@ -21,13 +23,13 @@ int runProtocol(Party & Alice,Party & Bob,int limit)
 		Bob.setParity(Bob.getTindex() % 4);
 
 		//calculate new for each party - line 4
-		Alice.setNewT((Alice.getTindex() + Alice.getTempS()[(Alice.getParity() + 1) % 4].isFull() + 1) % 4);
-		Bob.setNewT((Bob.getTindex() + Bob.getTempS()[(Bob.getParity() + 1) % 4].isFull() + 1) % 4);
+		Alice.setNewIndex((Alice.getTindex() + Alice.getTempS()[(Alice.getParity() + 1) % 4].isFull() + 1) % 4);
+		Bob.setNewIndex((Bob.getTindex() + Bob.getTempS()[(Bob.getParity() + 1) % 4].isFull() + 1) % 4);
 
 
 		if (Alice.getSendZero() == false && Bob.getSendZero() == false)	// no errors
 		{
-			Party::noErrorsOnBothSides(Alice, Bob);	// send block of k bits, each
+			Party::noErrorsOnBothSides(Alice, Bob, channelAliceToBob, channelBobToAlice);	// send block of k bits, each
 
 			// lines 11-19 - check all scenarios
 			Party::checkAllCasesInProtocol(Alice);
@@ -35,16 +37,16 @@ int runProtocol(Party & Alice,Party & Bob,int limit)
 		}
 		else if (Alice.getSendZero() == true && Bob.getSendZero() == true)	// both parties saw error last round
 		{
-			Party::bothSidesSeeErrors(Alice, Bob);
+			Party::bothSidesSeeErrors(Alice, Bob, channelAliceToBob, channelBobToAlice);
 		}
 		else if (Alice.getSendZero() == true && Bob.getSendZero() == false)	// Alice saw error last round
 		{
-			Party::AliceSeesErrorBobNot(Alice, Bob);
+			Party::AliceSeesErrorBobNot(Alice, Bob, channelAliceToBob, channelBobToAlice);
 			Party::checkAllCasesInProtocol(Bob);
 		}
 		else if (Alice.getSendZero() == false && Bob.getSendZero() == true)	// Bob saw error last round
 		{
-			Party::BobSeesErrorAliceNot(Alice, Bob);
+			Party::BobSeesErrorAliceNot(Alice, Bob, channelAliceToBob, channelBobToAlice);
 			Party::checkAllCasesInProtocol(Alice);
 		}
 
@@ -56,28 +58,29 @@ int runProtocol(Party & Alice,Party & Bob,int limit)
 }
 
 
-int mainExe()
+int mainExe(Party &Alice,Party &Bob)
 {
-	Party Alice;
-	Party Bob;
-	Party::getRandom(Alice,Bob);
-	int round1 = runProtocol(Alice, Bob,32);
+	Channel channelAliceToBob(100000);
+	Channel channelBobToAlice(100000);
+	Party::getRandom(Alice, Bob);
+	int round1 = runProtocol(Alice, Bob, 32, channelAliceToBob, channelBobToAlice);
 	Alice.setRandBob(Alice.getTR()[0]);
 	Bob.setRandAlice(Bob.getTR()[0]);
 	Alice.pumpRandom();
 	Bob.pumpRandom();
 	Alice.nextPhase();
 	Bob.nextPhase();
-	int round2 = runProtocol(Alice, Bob,n);
-	return (round1+round2)*BLOCK_SIZE;
+	int round2 = runProtocol(Alice, Bob, n, channelAliceToBob, channelBobToAlice);
+	return (round1 + round2)*BLOCK_SIZE;
 }
 
 
 void main()
 {
+	
 	std::srand(std::time(0));
 	int test = 2;
-	if (test==1)
+	if (test == 1)
 	{
 		double count[10000];
 		for (int i = 0; i <= 10000; i++)
@@ -89,9 +92,9 @@ void main()
 			BLOCK_SIZE = j;
 			for (int i = 0; i < 2; i++)
 			{
-				PiAlice::generateTrans();
-				PiBob::generateTrans();
-				count[j] += mainExe();
+				//PiAlice::generateTrans();
+				//PiBob::generateTrans();
+			//	count[j] += mainExe(Alice,Bob);
 			}
 		}
 
@@ -112,27 +115,27 @@ void main()
 
 		myfile.close();
 	}
-	else if (test==0)
+	else if (test == 0)
 	{
-		
-		PiAlice::generateTrans();
-		PiBob::generateTrans();
-		mainExe();
+
+	//	PiAlice::generateTrans();
+	//	PiBob::generateTrans();
+		//mainExe(Alice,Bob);
 	}
 	else if (test == 2)
 	{
-		int rate=0;
+		int rate = 0;
 		BLOCK_SIZE = 16;
 		for (int i = 0; i < 10; i++)
 		{
-			/* for random protocol
-			PiAlice::generateTrans();
-			PiBob::generateTrans();*/
-			rate+= mainExe();
+			Party Alice(2);
+			Party Bob(2);
+
+			rate += mainExe(Alice,Bob);
 		}
 		std::cout << ((rate / 10));
 	}
-	
+
 	int y;
 	cin >> y;
 }
