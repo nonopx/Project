@@ -1,5 +1,5 @@
 #pragma once
-extern int BLOCK_SIZE ;
+extern int BLOCK_SIZE;
 
 
 class Block
