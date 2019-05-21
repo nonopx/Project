@@ -1,20 +1,19 @@
 #include <iostream>
 using namespace std;
 #include "Party.h"
-#include "PiAlice.h"
-#include "PiBob.h"
 #include <math.h>  
 #include <stdlib.h>
+#include "PRG.h"
 // const's for prg
 #define c 2531011
 #define a 214013
 #define m 4294967296
 
-#define ALICE_INPUT 0, Alice.TS, Alice.TR, Alice.tempS[(Alice.parity + 1) % 4], Alice.tempR[(Alice.parity + 1) % 4], Alice.tempS[Alice.newT], Alice.tempR[Alice.newT], Alice.indexresultTS, Alice.indexTS, Alice.countones, Alice.randAlice
-#define BOB_INPUT 0, Bob.TS, Bob.TR, Bob.tempS[(Bob.parity + 1)%4], Bob.tempR[(Bob.parity + 1)%4], Bob.tempS[Bob.newT], Bob.tempR[Bob.newT], Bob.indexresultTS, Bob.indexTS,Bob.countones, Bob.randBob
+#define ALICE_INPUT 0, Alice.TS, Alice.TR, Alice.tempS[(Alice.parity + 1) % 4], Alice.tempR[(Alice.parity + 1) % 4], Alice.tempS[Alice.newIndex], Alice.tempR[Alice.newIndex], Alice.indexresultTS, Alice.indexTS, Alice.countones, Alice.randAlice
+#define BOB_INPUT 0, Bob.TS, Bob.TR, Bob.tempS[(Bob.parity + 1)%4], Bob.tempR[(Bob.parity + 1)%4], Bob.tempS[Bob.newIndex], Bob.tempR[Bob.newIndex], Bob.indexresultTS, Bob.indexTS,Bob.countones, Bob.randBob
 
 
-Party::Party()
+Party::Party(int pi)
 {
 	countones = 0;
 	count = 0;
@@ -46,6 +45,20 @@ Party::Party()
 	{
 		pumpSeed[i] = 0;
 	}
+
+	// 0 - piZeor, 1 - piOne, 2 - piRand
+	if (0 == pi) 
+		this->pi = new PiZero();
+	else if (1 == pi)
+		this->pi = new PiOne();
+	else if (2 == pi)
+	{
+		 this->pi = new PiRand(n);
+		 this->getPi()->generateTrans(n);
+	}
+	
+
+
 
 }
 Party::~Party()
@@ -82,7 +95,7 @@ void Party::nextPhase()
 }
 
 // check if trans are equal
-bool Party::checkreal(unsigned int* b1,unsigned int* b2)
+bool Party::checkreal(unsigned int* b1, unsigned int* b2)
 {
 	int index = n / 32;
 	for (int i = 0; i < index; i++)
@@ -117,44 +130,44 @@ unsigned int Party::getBitXor(int x, unsigned int* tr, unsigned int* ts, Block& 
 	else
 		countBits = indexresultTS * 32 + indexTS + temp_p_1S.getIndex() - countones;
 	int specTR = countBits / 32;
-	int specBit = ( countBits) % 32;
+	int specBit = (countBits) % 32;
 	unsigned int ret = this->pumpSeed[specTR] / pow(2, specBit);
 	ret = ret % 2;
 	return ret;
 }
 
-void Party::noErrorsOnBothSides(Party& Alice, Party& Bob)
+void Party::noErrorsOnBothSides(Party& Alice, Party& Bob, Channel& channelAliceToBob, Channel& channelBobToAlice)
 {
-	Bob.tempR[Bob.newT].resetBlock();
-	Bob.tempS[Bob.newT].resetBlock();
-	Alice.tempS[Alice.newT].resetBlock();
-	Alice.tempR[Alice.newT].resetBlock();
+	Bob.tempR[Bob.newIndex].resetBlock();
+	Bob.tempS[Bob.newIndex].resetBlock();
+	Alice.tempS[Alice.newIndex].resetBlock();
+	Alice.tempR[Alice.newIndex].resetBlock();
 	for (int i = 0; i < BLOCK_SIZE; i++)
 	{
 
 		// Alice sends, Bob receives
-		if (i >= BLOCK_SIZE - 3 && Alice.tempS[Alice.newT].checkIfk3Zero())	// pad 1 in case of need
+		if (i >= BLOCK_SIZE - 3 && Alice.tempS[Alice.newIndex].checkIfk3Zero())	// pad 1 in case of need
 		{
 			Alice.sendBit = 1;
 		}
 		else  // no need to pad 1
 		{
-			if (0==Alice.phase)	// send prg bits
+			if (0 == Alice.phase)	// send prg bits
 			{
-				Alice.sendBit = PiAlice::piRand(ALICE_INPUT);
+				Alice.sendBit = Alice.pi->sendSeed(ALICE_INPUT);
 			}
 			else				// run protocol
 			{
-				Alice.sendBit = PiAlice::Pi(ALICE_INPUT) ^ Alice.getBitXor(ALICE_INPUT);
+				Alice.sendBit = Alice.pi->getNextBit(ALICE_INPUT) ^ Alice.getBitXor(ALICE_INPUT);
 			}
 		}
 		// save bits
-		Alice.tempS[Alice.newT].fillBlock(Alice.sendBit);
-		Bob.tempR[Bob.newT].fillBlock(Channel::sendabit(Alice.sendBit));
+		Alice.tempS[Alice.newIndex].fillBlock(Alice.sendBit);
+		Bob.tempR[Bob.newIndex].fillBlock(channelAliceToBob.sendabit(Alice.sendBit));
 
-		
+
 		// Bob sends, Alice receives
-		if (i >= BLOCK_SIZE - 3 && Bob.tempS[Bob.newT].checkIfk3Zero())	// pad 1 in case of need
+		if (i >= BLOCK_SIZE - 3 && Bob.tempS[Bob.newIndex].checkIfk3Zero())	// pad 1 in case of need
 		{
 			Bob.sendBit = 1;
 		}
@@ -162,63 +175,65 @@ void Party::noErrorsOnBothSides(Party& Alice, Party& Bob)
 		{
 			if (0 == Bob.phase)	// send prg bits
 			{
-				Bob.sendBit = PiBob::piRand(BOB_INPUT);
+				Bob.sendBit = Bob.pi->sendSeed(BOB_INPUT);
+
 			}
 			else				// run protocol
 			{
-				Bob.sendBit = PiBob::Pi(BOB_INPUT)^Bob.getBitXor(BOB_INPUT);
+				Bob.sendBit = Bob.pi->getNextBit(BOB_INPUT) ^ Bob.getBitXor(BOB_INPUT);
+
 			}
-				
+
 		}
 		// save bits
-		Bob.tempS[Bob.newT].fillBlock(Bob.sendBit);
-		Alice.tempR[Alice.newT].fillBlock(Channel::sendabit(Bob.sendBit));
+		Bob.tempS[Bob.newIndex].fillBlock(Bob.sendBit);
+		Alice.tempR[Alice.newIndex].fillBlock(channelBobToAlice.sendabit(Bob.sendBit));
 
 	}
 
 }
-void Party::bothSidesSeeErrors(Party& Alice, Party& Bob)
+void Party::bothSidesSeeErrors(Party& Alice, Party& Bob, Channel& channelAliceToBob, Channel& channelBobToAlice)
 {
 	// both sides send a zeros block
 	for (int i = 0; i < BLOCK_SIZE; i++)
 	{
 		// Alice sends, Bob receives
 		Alice.sendBit = 0;
-		Channel::sendabit(Alice.sendBit);
-		
+		channelAliceToBob.sendabit(Alice.sendBit);
+
 		// Bob sends, Alice receives
 		Bob.sendBit = 0;
-		Channel::sendabit(Bob.sendBit);
+		channelBobToAlice.sendabit(Bob.sendBit);
 	}
 
 	Alice.sendZero = false;
 	Bob.sendZero = false;
 
 }
-void Party::AliceSeesErrorBobNot(Party& Alice, Party& Bob)
+void Party::AliceSeesErrorBobNot(Party& Alice, Party& Bob, Channel& channelAliceToBob, Channel& channelBobToAlice)
 {
-	Bob.tempR[Bob.newT].setIndex(0);
-	Bob.tempS[Bob.newT].setIndex(0);
+	Bob.tempR[Bob.newIndex].setIndex(0);
+	Bob.tempS[Bob.newIndex].setIndex(0);
 	for (int i = 0; i < BLOCK_SIZE - 2; i++)
 	{
 		// Alice sends, Bob receives
 		Alice.sendBit = 0;
 
-		Bob.tempR[Bob.newT].fillBlock(Channel::sendabit(Alice.sendBit));
+		Bob.tempR[Bob.newIndex].fillBlock(channelAliceToBob.sendabit(Alice.sendBit));
 
 		// Bob sends, Alice receives
 		if (0 == Bob.phase)		// send prg bits
 		{
-			Bob.sendBit = PiBob::piRand(BOB_INPUT);
+			Bob.sendBit = Bob.pi->sendSeed(BOB_INPUT);
 		}
 		else                    // run protocol
 		{
-			Bob.sendBit = PiBob::Pi(BOB_INPUT) ^ Bob.getBitXor(BOB_INPUT);
+			Bob.sendBit = Bob.pi->getNextBit(BOB_INPUT) ^ Bob.getBitXor(BOB_INPUT);
 		}
 
-		Bob.tempS[Bob.newT].fillBlock(Bob.sendBit);
+		Bob.tempS[Bob.newIndex].fillBlock(Bob.sendBit);
 
-		Channel::sendabit(Bob.sendBit);
+		channelBobToAlice.sendabit(Bob.sendBit);
 	}
 
 	// calculate parity
@@ -236,47 +251,47 @@ void Party::AliceSeesErrorBobNot(Party& Alice, Party& Bob)
 	{
 		// Alice sends, Bob receives
 		Alice.sendBit = paritybit[i];
-		Bob.tempR[Bob.newT].fillBlock(Channel::sendabit(Alice.sendBit));
+		Bob.tempR[Bob.newIndex].fillBlock(channelAliceToBob.sendabit(Alice.sendBit));
 
 		// Bob sends, Alice receives
-		if (Bob.phase==0)	// send prg bits
+		if (Bob.phase == 0)	// send prg bits
 		{
-			Bob.sendBit = PiBob::piRand(BOB_INPUT);
+			Bob.sendBit = Bob.pi->sendSeed(BOB_INPUT);
 
 		}
 		else                 // run protocol
 		{
-			Bob.sendBit = PiBob::Pi(BOB_INPUT) ^ Bob.getBitXor(BOB_INPUT);
+			Bob.sendBit = Bob.pi->getNextBit(BOB_INPUT) ^ Bob.getBitXor(BOB_INPUT);
 		}
-		Bob.tempS[Bob.newT].fillBlock(Bob.sendBit);
-		Channel::sendabit(Bob.sendBit);
+		Bob.tempS[Bob.newIndex].fillBlock(Bob.sendBit);
+		channelBobToAlice.sendabit(Bob.sendBit);
 	}
 
 	Alice.sendZero = false;
 }
-void Party::BobSeesErrorAliceNot(Party& Alice, Party& Bob)
+void Party::BobSeesErrorAliceNot(Party& Alice, Party& Bob, Channel& channelAliceToBob, Channel& channelBobToAlice)
 {
-	Alice.tempS[Alice.newT].setIndex(0);
-	Alice.tempR[Alice.newT].setIndex(0);
+	Alice.tempS[Alice.newIndex].setIndex(0);
+	Alice.tempR[Alice.newIndex].setIndex(0);
 	for (int i = 0; i < BLOCK_SIZE - 2; i++)
 	{
 		// Alice sends, Bob receives
-		if (Alice.phase==0)		// send prg bits
+		if (Alice.phase == 0)		// send prg bits
 		{
-			Alice.sendBit = PiAlice::piRand(ALICE_INPUT);
+			Alice.sendBit = Alice.pi->sendSeed(ALICE_INPUT);
 		}
 		else                   // run protocol
 		{
-			Alice.sendBit = PiAlice::Pi(ALICE_INPUT) ^ Alice.getBitXor(ALICE_INPUT);
+			Alice.sendBit = Alice.pi->getNextBit(ALICE_INPUT) ^ Alice.getBitXor(ALICE_INPUT);
 		}
-		Alice.tempS[Alice.newT].fillBlock(Alice.sendBit);
-		Channel::sendabit(Alice.sendBit);
+		Alice.tempS[Alice.newIndex].fillBlock(Alice.sendBit);
+		channelAliceToBob.sendabit(Alice.sendBit);
 
 
 
 		// Alice sends, Bob receives
 		Bob.sendBit = 0;
-		Alice.tempR[Alice.newT].fillBlock(Channel::sendabit(Bob.sendBit));
+		Alice.tempR[Alice.newIndex].fillBlock(channelBobToAlice.sendabit(Bob.sendBit));
 	}
 
 	// calculate parity
@@ -293,22 +308,21 @@ void Party::BobSeesErrorAliceNot(Party& Alice, Party& Bob)
 	for (int i = 0; i < 2; i++)
 	{
 		// Alice sends, Bob receives
-		if (Alice.phase==0)			// send prg bits
+		if (Alice.phase == 0)			// send prg bits
 		{
-			Alice.sendBit = PiAlice::piRand(ALICE_INPUT);
+			Alice.sendBit = Alice.pi->sendSeed(ALICE_INPUT);
 		}
 		else                        // run protocol
 		{
-			Alice.sendBit = PiAlice::Pi(ALICE_INPUT) ^ Alice.getBitXor(ALICE_INPUT);
+			Alice.sendBit = Alice.pi->getNextBit(ALICE_INPUT) ^ Alice.getBitXor(ALICE_INPUT);
 		}
 
-		Alice.tempS[Alice.newT].fillBlock(Alice.sendBit);
-		Channel::calcP();
-		Channel::sendabit(Alice.sendBit);
+		Alice.tempS[Alice.newIndex].fillBlock(Alice.sendBit);
+		channelAliceToBob.sendabit(Alice.sendBit);
 
 		// Alice sends, Bob receives
 		Bob.sendBit = paritybit[i];
-		Alice.tempR[Alice.newT].fillBlock(Channel::sendabit(Bob.sendBit));
+		Alice.tempR[Alice.newIndex].fillBlock(channelBobToAlice.sendabit(Bob.sendBit));
 	}
 
 	Bob.sendZero = false;
@@ -320,13 +334,13 @@ void Party::checkAllCasesInProtocol(Party& good)
 	int bit1;
 	int parity;
 	int flag = 0;
-	bit0 = good.tempR[good.newT].getBlock()[BLOCK_SIZE - 2];
-	bit1 = good.tempR[good.newT].getBlock()[BLOCK_SIZE - 1];
+	bit0 = good.tempR[good.newIndex].getBlock()[BLOCK_SIZE - 2];
+	bit1 = good.tempR[good.newIndex].getBlock()[BLOCK_SIZE - 1];
 	parity = bit1 + 2 * bit0;	// convert to decimal
 	if (bit1 == 2 || bit0 == 2)
 		flag = 1;
 	// lines 11-14
-	if (good.tempR[good.newT].checkIfAllZero() && flag == 0)
+	if (good.tempR[good.newIndex].checkIfAllZero() && flag == 0)
 	{
 		//zero temp blocks - line 12
 		good.tempR[(parity) % 4].resetBlock();
@@ -336,29 +350,29 @@ void Party::checkAllCasesInProtocol(Party& good)
 
 
 		// line 13
-		if ((parity % 4) == (good.newT % 4))
+		if ((parity % 4) == (good.newIndex % 4))
 		{
 			good.sendZero = true;
 		}
 	}
 
 	// lines 15-16 - we got erasures in the last block filled
-	else if (good.tempR[good.newT].checkIfError())
+	else if (good.tempR[good.newIndex].checkIfError())
 	{
 		// line 16
-		good.tempR[good.newT].resetBlock();
-		good.tempS[good.newT].resetBlock();
+		good.tempR[good.newIndex].resetBlock();
+		good.tempS[good.newIndex].resetBlock();
 
 		good.sendZero = true;	// line 17
 	}
 
 	// line 18-19 - concatenation to transcript
 
-	else if (good.newT == checker)
+	else if (good.newIndex == checker)
 	{
 		good.addBlockTR(good.tempR[(good.parity + 1) % 4]);
 		good.addBlockTS(good.tempS[(good.parity + 1) % 4]);
-		if (good.tempS[good.newT].checkIfk3Zero())
+		if (good.tempS[good.newIndex].checkIfk3Zero())
 		{
 			good.countones = good.countones + 3;
 		}
@@ -368,37 +382,37 @@ void Party::checkAllCasesInProtocol(Party& good)
 void Party::addBlockTR(Block& blocktoadd) // this function takes a block and put it in the transcript of recieved
 {
 	int count3 = 1;
-		int checker = 0;
-		for (int i = indexTR; i < indexTR + BLOCK_SIZE; i++)
+	int checker = 0;
+	for (int i = indexTR; i < indexTR + BLOCK_SIZE; i++)
+	{
+		if (i < 32)
 		{
-			if (i < 32)
+			TR[indexresultTR] += pow(2, i)*blocktoadd.getBlock()[i - indexTR];
+		}
+		else
+		{
+			TR[indexresultTR + 1] += pow(2, i - 32 * count3)*blocktoadd.getBlock()[i - indexTR];
+			checker = 1;
+			if (i - count3 * 32 == 31)
 			{
-				TR[indexresultTR] += pow(2, i)*blocktoadd.getBlock()[i - indexTR];
-			}
-			else
-			{
-				TR[indexresultTR + 1] += pow(2, i - 32 * count3)*blocktoadd.getBlock()[i - indexTR];
-				checker = 1;
-				if (i - count3 * 32 == 31)
-				{
-					count3++;
-					indexresultTR++;
-				}
+				count3++;
+				indexresultTR++;
 			}
 		}
-		count3 = 1;
-		if (checker == 1)
-			indexresultTR++;
-		indexTR += BLOCK_SIZE;
-		if (indexTR == 32)
-		{
-			indexTR = 0;
-			indexresultTR++;
-		}
-		if (indexTR > 32)
-			indexTR = indexTR % 32;
-		count++;
-	
+	}
+	count3 = 1;
+	if (checker == 1)
+		indexresultTR++;
+	indexTR += BLOCK_SIZE;
+	if (indexTR == 32)
+	{
+		indexTR = 0;
+		indexresultTR++;
+	}
+	if (indexTR > 32)
+		indexTR = indexTR % 32;
+	count++;
+
 }
 void Party::addBlockTS(Block& blocktoadd) // // this function takes a block and put it in the transcript of sent
 {
@@ -435,7 +449,7 @@ void Party::addBlockTS(Block& blocktoadd) // // this function takes a block and 
 			indexTS = indexTS % 32;
 	}
 }
-void Party::print(Party&Alice,Party&Bob)
+void Party::print(Party&Alice, Party&Bob)
 {
 	std::cout << "Alice TS" << endl;
 	Party::printbits(Alice.TS);
@@ -449,7 +463,7 @@ void Party::print(Party&Alice,Party&Bob)
 void Party::printbits(unsigned int * b1) //this function prints all the bits of a given int of bits . 
 {
 
-	for (int i = 0; i < n/32; i++)
+	for (int i = 0; i < n / 32; i++)
 	{
 		for (int j = 0; j < 32; j++)
 		{
@@ -481,34 +495,11 @@ void Party::getRandom(Party& Alice, Party& Bob) //get 32 bit seed for both sides
 		Bob.randBob += pow(2, i)*(std::rand() % 2);
 	}
 }
-unsigned int Party::gen32PRGbit(unsigned int seed) //a strong prg with good parameters for our useage.
-{
-	return (seed*a + c) % m;
-}
+
 void Party::pumpRandom()
 {
-	this->pumpHalfRandom(this->randAlice, this->randBob);
-	
-}
-void Party::pumpHalfRandom(unsigned int seed,unsigned int seed2) //pump a pseudo random string for one side.
-{
-	int size = n / 64 + 1;
-	this->pumpSeed[0] = seed;
-	unsigned int temp = seed;
-	int i;
-	for (i=1 ; i < size; i++)
-	{
-		temp = gen32PRGbit(temp);
-		this->pumpSeed[i] = temp;	
-	}
-	int j = 0;
-	this->pumpSeed[i + j] = seed2;
-	temp = seed2;
-	for (j = 1; j < size; j++)
-	{
-		temp = gen32PRGbit(temp);
-		this->pumpSeed[i+j] = temp;
-	}
+	PRG::pumpHalfRandom(this->randAlice, this->randBob, this->pumpSeed, n);
+
 }
 
 
@@ -535,12 +526,12 @@ int Party::getParity()
 
 void Party::setParity(int par)
 {
-	this -> parity = par;
+	this->parity = par;
 }
 
-void Party::setNewT(int nt)
+void Party::setNewIndex(int nt)
 {
-	this->newT = nt;
+	this->newIndex = nt;
 }
 
 int Party::getTindex()
@@ -561,7 +552,10 @@ void Party::setRandAlice(unsigned int rand)
 {
 	this->randAlice = rand;
 }
-
+Pi* Party::getPi()
+{
+	return pi;
+}
 void Party::setRandBob(unsigned int rand)
 {
 	this->randBob = rand;
