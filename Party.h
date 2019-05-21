@@ -2,6 +2,18 @@
 #define n 500000
 #include "block.h"
 #include "Channel.h"
+#include "Pi.h"
+#include "PiOne.h"
+#include "PiRand.h"
+#include "PiZero.h"
+
+#ifdef UNSIGNEDINT_IS_32BITS
+typedef unsigned int int32;
+#else
+#ifdef INT_IS_32BITS
+typedef int int32;
+#endif
+#endif
 class Party
 {
 private:
@@ -14,7 +26,7 @@ private:
 	bool sendZero;
 	int sendBit;
 	int parity;
-	int newT;
+	int newIndex;
 	int Tindex;	// |T/2k|
 	Block* tempR;
 	Block* tempS;
@@ -24,28 +36,27 @@ private:
 	unsigned int* TR;
 	unsigned int *TS;
 	int phase;
+	Pi* pi;
 
 
 public:
-	
-	Party();
+
+	Party(int pi);
 	unsigned int getBitXor(int x, unsigned int* tr, unsigned int* ts, Block& temp_p_1S, Block& temp_p_1R, Block& temp_newS, Block& temp_newR, int indexresultTS, int indexTS, int countones, unsigned int randmine);
-	static bool checkreal(unsigned int* b1,unsigned int* b2);
+	static bool checkreal(unsigned int* b1, unsigned int* b2);
 	static bool checkAllTrans(Party& alice, Party& bob);
 	void nextPhase();
 	void addBlockTR(Block& blocktoadd);
 	void addBlockTS(Block& blocktoadd);
-	static void noErrorsOnBothSides(Party& Alice, Party& Bob);
-	static void bothSidesSeeErrors(Party& Alice, Party& Bob);
-	static void AliceSeesErrorBobNot(Party& Alice, Party& Bob);
-	static void BobSeesErrorAliceNot(Party& Alice, Party& Bob);
+	static void noErrorsOnBothSides(Party& Alice, Party& Bob, Channel& channelAliceToBob, Channel& channelBobToAlice);
+	static void bothSidesSeeErrors(Party& Alice, Party& Bob, Channel& channelAliceToBob, Channel& channelBobToAlice);
+	static void AliceSeesErrorBobNot(Party& Alice, Party& Bob, Channel& channelAliceToBob, Channel& channelBobToAlice);
+	static void BobSeesErrorAliceNot(Party& Alice, Party& Bob, Channel& channelAliceToBob, Channel& channelBobToAlice);
 	static void print(Party& Alice, Party& Bob);
 	static void checkAllCasesInProtocol(Party& good);
 	static void printbits(unsigned int * b1);
-	unsigned int gen32PRGbit(unsigned int seed);
 	static void getRandom(Party& alice, Party& bob);
 	void pumpRandom();
-	void pumpHalfRandom(unsigned int seed,unsigned int seed2);
 
 
 	// get's & set's
@@ -54,10 +65,11 @@ public:
 	bool getSendZero();
 	int getParity();
 	void setParity(int par);
-	void setNewT(int nt);
+	void setNewIndex(int nt);
 	int getTindex();
 	Block* getTempR();
 	Block* getTempS();
+	Pi * getPi();
 	void setRandAlice(unsigned int rand);
 	void setRandBob(unsigned int rand);
 	unsigned int* getTR();
