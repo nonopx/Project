@@ -3,7 +3,7 @@
 #include <ctime>
 //#include <iostream>
 #include <cstdlib>
-#include "Party.h"
+
 
 
 
@@ -11,18 +11,17 @@
 class Channel
 {
 private:
-	static int p;
+	unsigned int epsilon;		//	max bound of uniform dist.
 
 
 public:
 
-	static void calcP()
-	{
-
-		p = std::rand() % 316 + 1; //only until 32767!!!
-	}
-	Channel();
+	int drawNum();
+	Channel(unsigned int epsilon);
 	~Channel();
-	static int sendabit(int sendbit);
+	int sendabit(int sendbit);
+	int getDigits();
+	int calcUniDist();
+
 };
 
